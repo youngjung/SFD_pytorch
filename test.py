@@ -1,8 +1,6 @@
 from __future__ import print_function
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 torch.backends.cudnn.bencmark = True
@@ -24,8 +22,8 @@ def detect(net,img):
     olist = net(img)
 
     bboxlist = []
-    for i in range(len(olist)/2): olist[i*2] = F.softmax(olist[i*2])
-    for i in range(len(olist)/2):
+    for i in range(len(olist)//2): olist[i*2] = F.softmax(olist[i*2])
+    for i in range(len(olist)//2):
         ocls,oreg = olist[i*2].data.cpu(),olist[i*2+1].data.cpu()
         FB,FC,FH,FW = ocls.size() # feature map size
         stride = 2**(i+2)    # 4,8,16,32,64,128
@@ -47,9 +45,9 @@ def detect(net,img):
     return bboxlist
 
 parser = argparse.ArgumentParser(description='PyTorch face detect')
+parser.add_argument('path', type=str)
 parser.add_argument('--net','-n', default='s3fd', type=str)
-parser.add_argument('--model', default='', type=str)
-parser.add_argument('--path', default='CAMERA', type=str)
+parser.add_argument('--model', default='s3fd_convert.pth', type=str)
 
 args = parser.parse_args()
 use_cuda = torch.cuda.is_available()
@@ -62,24 +60,17 @@ net.cuda()
 net.eval()
 
 
-if args.path=='CAMERA': cap = cv2.VideoCapture(0)
-while(True):
-    if args.path=='CAMERA': ret, img = cap.read()
-    else: img = cv2.imread(args.path)
+img = cv2.imread(args.path)
 
-    imgshow = np.copy(img)
-    bboxlist = detect(net,img)
+imgshow = np.copy(img)
+bboxlist = detect(net,img)
 
-    keep = nms(bboxlist,0.3)
-    bboxlist = bboxlist[keep,:]
-    for b in bboxlist:
-        x1,y1,x2,y2,s = b
-        if s<0.5: continue
-        cv2.rectangle(imgshow,(int(x1),int(y1)),(int(x2),int(y2)),(0,255,0),1)
-    cv2.imshow('test',imgshow)
+keep = nms(bboxlist,0.3)
+bboxlist = bboxlist[keep,:]
+for b in bboxlist:
+    x1,y1,x2,y2,s = b
+    if s<0.5: continue
+    cv2.rectangle(imgshow,(int(x1),int(y1)),(int(x2),int(y2)),(0,255,0),1)
+# cv2.imshow('test',imgshow)
 
-    if args.path=='CAMERA':
-        if cv2.waitKey(1) & 0xFF == ord('q'): break
-    else:
-        cv2.imwrite(args.path[:-4]+'_output.png',imgshow)
-        if cv2.waitKey(0) or True: break
+cv2.imwrite(args.path[:-4]+'_output.png',imgshow)
